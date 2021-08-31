@@ -1,0 +1,88 @@
+/*******************************************************************************
+ * Copyright (c) 2021. Blademaker
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and limitations under the License.
+ ******************************************************************************/
+
+package tv.blademaker.utils
+
+import tv.blademaker.i18n.I18nKey
+import io.sentry.Sentry
+import io.sentry.SentryEvent
+import io.sentry.protocol.Message
+import io.sentry.protocol.User
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import tv.blademaker.i18n.i18n
+import tv.blademaker.slash.SlashCommandContext
+import java.net.InetAddress
+import java.net.UnknownHostException
+
+@Suppress("unused")
+object SentryUtils {
+
+    private val LOGGER = LoggerFactory.getLogger(SentryUtils::class.java)
+
+    private val serverName: String?
+        get() {
+            return try {
+                InetAddress.getLocalHost().hostName
+            } catch (e: UnknownHostException) {
+                null
+            }
+        }
+
+    fun init() {
+        val dsn = Credentials.getOrNull<String>("sentry.dsn")
+            ?: return
+
+        LOGGER.info("Initializing sentry with DSN $dsn")
+        Sentry.init { options ->
+            options.environment = "production"
+            options.dsn = dsn
+            options.release = Versions.BOT
+            options.setDebug(false)
+            serverName?.let { sn -> options.serverName = sn }
+        }
+    }
+
+    fun captureSlashCommandException(ctx: SlashCommandContext, e: Throwable, logger: Logger? = null) {
+        val message = ctx.i18n(I18nKey.EXCEPTION_HANDLING_SLASH_COMMAND_OPTION, ctx.event.commandPath, e.message)
+
+        if (ctx.event.isAcknowledged) ctx.send(Emojis.Outage, message).setEphemeral(true).queue()
+        else ctx.reply(Emojis.Outage, message).setEphemeral(true).queue()
+
+        val errorMessage = "Exception executing handler for ${ctx.event.commandPath}, ${e.message}"
+
+        val userType: String = when {
+            ctx.author.isSystem -> "System"
+            ctx.author.isBot -> "Bot"
+            else -> "User"
+        }
+
+        Sentry.captureEvent(SentryEvent().apply {
+            this.message = Message().apply {
+                this.message = errorMessage
+            }
+            this.user = User().apply {
+                this.id = ctx.author.id
+                this.username = ctx.author.asTag
+                this.others = mapOf("type" to userType)
+            }
+            this.setExtra("Guild", "${ctx.guild.name} (${ctx.guild.id})")
+            this.setExtra("Command Path", ctx.event.commandPath)
+            throwable = e
+        })
+
+        logger?.error(errorMessage, e)
+    }
+}

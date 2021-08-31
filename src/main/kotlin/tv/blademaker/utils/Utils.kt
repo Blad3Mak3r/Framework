@@ -1,0 +1,169 @@
+/*******************************************************************************
+ * Copyright (c) 2021. Blademaker
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and limitations under the License.
+ ******************************************************************************/
+
+@file:Suppress("unused")
+
+package tv.blademaker.utils
+
+import tv.blademaker.extensions.capital
+import io.sentry.Sentry
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
+import net.dv8tion.jda.api.entities.Guild
+import net.dv8tion.jda.api.entities.Role
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import java.net.MalformedURLException
+import java.net.URL
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+
+object Utils {
+
+    object UncaughtExceptionHandler : Thread.UncaughtExceptionHandler {
+
+        private val logger = LoggerFactory.getLogger(UncaughtExceptionHandler::class.java)
+
+        override fun uncaughtException(t: Thread, e: Throwable) {
+            logger.error("Caught exception in thread $t", e)
+            Sentry.captureException(e)
+        }
+
+    }
+
+    open class CustomThreadFactory(
+        private val name: String,
+        private val daemon: Boolean = false
+    ) : ThreadFactory {
+        private val threadNumber = AtomicInteger(1)
+
+        override fun newThread(r: Runnable): Thread {
+            val t = Thread(r)
+            t.name = String.format(name, threadNumber.getAndIncrement())
+            t.isDaemon = daemon
+            t.uncaughtExceptionHandler = UncaughtExceptionHandler
+            return t
+        }
+    }
+
+    fun printBanner(pid: Long, logger: Logger) {
+        val content = """
+            Starting Killjoy with PID $pid
+             ___  __    ___  ___       ___             ___  ________      ___    ___ 
+            |\  \|\  \ |\  \|\  \     |\  \           |\  \|\   __  \    |\  \  /  /|
+            \ \  \/  /|\ \  \ \  \    \ \  \          \ \  \ \  \|\  \   \ \  \/  / /
+             \ \   ___  \ \  \ \  \    \ \  \       __ \ \  \ \  \\\  \   \ \    / / 
+              \ \  \\ \  \ \  \ \  \____\ \  \____ |\  \\_\  \ \  \\\  \   \/  /  /  
+               \ \__\\ \__\ \__\ \_______\ \_______\ \________\ \_______\__/  / /    
+                \|__| \|__|\|__|\|_______|\|_______|\|________|\|_______|\___/ /     
+                                                The best Valorant bot!! \|___|/     
+                 
+            • Killjoy Version    :   ${Versions.BOT}
+            • Build Number       :   ${Versions.BUILD_NUMBER}
+            • Commit             :   ${Versions.COMMIT}
+            • JDA Version        :   ${Versions.JDA}
+            =========================================================================
+        """.trimIndent()
+
+        logger.info(content)
+    }
+
+    fun newThreadFactory(name: String,
+                         corePoolSize: Int,
+                         maximumPoolSize: Int,
+                         keepAliveTime: Long = 5L,
+                         unit: TimeUnit = TimeUnit.MINUTES,
+                         daemon: Boolean = true
+    ): ThreadPoolExecutor {
+        return ThreadPoolExecutor(
+            corePoolSize, maximumPoolSize,
+            keepAliveTime, unit,
+            LinkedBlockingQueue(),
+            CustomThreadFactory(name, daemon)
+        )
+    }
+
+    fun newCoroutineDispatcher(name: String,
+                         corePoolSize: Int,
+                         maximumPoolSize: Int,
+                         keepAliveTime: Long = 5L,
+                         unit: TimeUnit = TimeUnit.MINUTES,
+                         daemon: Boolean = true
+    ): CoroutineDispatcher {
+        return newThreadFactory(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, daemon).asCoroutineDispatcher()
+    }
+
+    @JvmStatic
+    fun isUrl(str: String): Boolean {
+        return try {
+            URL(str)
+            true
+        } catch (ignored: MalformedURLException) {
+            false
+        }
+    }
+
+    object JDA {
+        @JvmStatic
+        fun getGuildRole(guild: Guild, role: String): Role? {
+            return guild.getRolesByName(role, true).takeIf { it.isNotEmpty() }?.get(0)
+        }
+
+        @JvmStatic
+        fun getGuildRoles(guild: Guild, roles: Collection<String>) = roles
+            .filter { it.startsWith("<@&") }
+            .map { it.replace("<@&", "") }
+            .map { it.replace(">", "") }.mapNotNull { guild.getRoleById(it) }
+
+        @JvmStatic
+        fun getGuildRoles(guild: Guild, vararg roles: String) = getGuildRoles(guild, roles.toList())
+    }
+
+    object StringUtils {
+        @JvmStatic
+        fun capitalize(str: String) = str.capital()
+    }
+
+    object Validation {
+
+        @JvmStatic
+        fun startWith(str: String, vararg options: String): Boolean {
+            for (opt in options) {
+                if (str.startsWith(opt)) return true
+            }
+            return false
+        }
+
+        @JvmStatic
+        fun startWithInt(str: String) = isInt(str.split("")[0])
+
+        @JvmStatic
+        fun isInt(str: String): Boolean = try {
+            str.toInt()
+            true
+        } catch (ignored: NumberFormatException) {
+            false
+        }
+
+        @JvmStatic
+        fun isNull(str: String?) = str == null || str == "null"
+
+        @JvmStatic
+        fun validLength(str: String, max: Int) = str.length <= max
+    }
+}

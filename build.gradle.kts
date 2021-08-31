@@ -41,6 +41,10 @@ dependencies {
     implementation("io.sentry:sentry:$sentryVersion")
     implementation("com.github.minndevelopment:jda-ktx:d460e2a")
 
+    implementation("com.xenomachina:kotlin-argparser:2.0.7")
+    implementation("com.typesafe:config:1.4.1")
+    implementation("org.json:json:20210307")
+
     //HTTP Clients
     implementation("com.squareup.okhttp3:okhttp:4.9.1")
 }
