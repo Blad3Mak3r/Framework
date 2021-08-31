@@ -63,17 +63,9 @@ object Utils {
 
     fun printBanner(pid: Long, logger: Logger) {
         val content = """
-            Starting Killjoy with PID $pid
-             ___  __    ___  ___       ___             ___  ________      ___    ___ 
-            |\  \|\  \ |\  \|\  \     |\  \           |\  \|\   __  \    |\  \  /  /|
-            \ \  \/  /|\ \  \ \  \    \ \  \          \ \  \ \  \|\  \   \ \  \/  / /
-             \ \   ___  \ \  \ \  \    \ \  \       __ \ \  \ \  \\\  \   \ \    / / 
-              \ \  \\ \  \ \  \ \  \____\ \  \____ |\  \\_\  \ \  \\\  \   \/  /  /  
-               \ \__\\ \__\ \__\ \_______\ \_______\ \________\ \_______\__/  / /    
-                \|__| \|__|\|__|\|_______|\|_______|\|________|\|_______|\___/ /     
-                                                The best Valorant bot!! \|___|/     
-                 
-            • Killjoy Version    :   ${Versions.BOT}
+            Starting Bot with PID $pid
+            
+            • Bot Version        :   ${Versions.BOT}
             • Build Number       :   ${Versions.BUILD_NUMBER}
             • Commit             :   ${Versions.COMMIT}
             • JDA Version        :   ${Versions.JDA}
